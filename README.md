@@ -1,5 +1,74 @@
 Hacker Books
 ============
+
+La primera carga del JSON
+--------------------------
+La primera vez que carga los datos de remoto la aplicación tarda un poco. Una vez cargados los guarda en local para futuros accesos (toda la lógica en JSONProcessing). 
+
+
+Implemento la funcion `loadDta()`, que con `loadFromLocalFile()` que me permite intentar cargar los datos desde local. Si no consigue cargarlo lo descargo desde internet con `loadFromInternet()`  y lo guardo en un fichero local para futuro acceso.
+
+```swift
+func loadData(fromUrl url: NSURL) throws -> JSONArray {
+    var data: NSData?
+
+    do {
+        if let localData = try loadFromLocalFile(fileName: "data", withExtension: "json") {
+            data = localData
+        } else {
+            if let inetData = try? loadFromInternet(url) {
+                data = inetData
+            } else {
+                throw HackerBooksError.ErrorLoadingData("No se puede cargar ningún dato")
+            }
+        }
+    } catch {
+            throw HackerBooksError.ErrorLoadingData("NO se han podido cargar los datos")
+    }
+
+    if  let d: NSData = data!,
+        let jsonArray = try? dataToJson(d) {
+        return jsonArray
+    } else {
+        throw HackerBooksError.JSONParsingError
+    }    
+}
+
+func loadFromLocalFile(fileName name: String, withExtension ext: String) throws -> NSData? {
+    let fm = NSFileManager.defaultManager()
+    do {
+        print("Cargando datos desde cache...")
+        var url = try fm.URLForDirectory(NSSearchPathDirectory.DocumentDirectory, inDomain: NSSearchPathDomainMask.UserDomainMask, appropriateForURL: nil, create: true)
+        url = url.URLByAppendingPathComponent("data.json")
+        return NSData(contentsOfURL: url)
+    } catch {
+        throw HackerBooksError.ErrorLoadingData("Desde fichero local")
+    }
+}
+
+
+
+func loadFromInternet(url: NSURL) throws -> NSData {
+    if let  data = NSData(contentsOfURL: url) {
+        do {
+            try saveData(data)
+        }catch{
+            print("No se han podido guardar los datos")
+        }
+        return data
+    } else {
+        throw HackerBooksError.JSONParsingError
+    }
+
+}
+```
+
+Estas funciones se llaman desde AppDelegate:
+
+```swift
+let json = try loadData(fromUrl: NSURL(string:"https://t.co/K9ziV0z3SJ")!)
+```
+
 Modelo de datos
 ---------------
 El modelo de datos se carga recorriendo el array de libros y almacenando cada uno en un diccionario del tipo [Tag:[BookSet]]
@@ -170,7 +239,6 @@ protocol LibraryViewControllerDelegate {
 
 Este protocolo se implementa en BookViewController :
 
-
 ```swift
 //MARK: - Delegate
 func libraryViewController(viewCtrl: LibraryViewController, didSelectBook book: Book) {
@@ -183,7 +251,7 @@ func libraryViewController(viewCtrl: LibraryViewController, didSelectBook book: 
 }
 ```
 
-Y al ser llamado realiza un popViewController para quitar la vista detalle (el PDF) del navigation correspondiente.
+Y al ser llamado realiza un `popViewController()` para quitar la vista detalle (el PDF) del navigation correspondiente.
 
 Cambio de disposición de TableView para mostrar los datos ordenados por Tags o Secciones
 ------------------------------------------------------------------------------
@@ -222,7 +290,6 @@ func bookAtIndexPath(indexPath: NSIndexPath) -> Book{
     } else {
         book = model.book(atIndex: indexPath.row)
     }
-    
     return book!
 }
 ```
@@ -231,7 +298,7 @@ Ordenar por prioridad (si es favorito arriba y si no por )
 ---------------------------------------------------------
 Una cosa que me ha dado algo de guerra es la ordenación según prioridad de los libros y tags en el TableView. Entendí desde el principio que había que implementar las extensiones Comparable para cada modelo, pero no sé si llego a comprender del todo bien la cosa:
 
-Ejemplo del libro (el del tag es similar)
+Mi ejemplo del libro (el del tag es similar)
 
 
 ```swift
@@ -250,14 +317,24 @@ func <(lhs: Book, rhs: Book) -> Bool {
 ```
 
 - Si los dos son favoritos o no-favoritos comparo "normal" los libros por orden alfabético (por propiedad title)
-- Si lhs es favorito, devuelvo ¿true? ¿Por qué? entiendo que si estamos realizando una comparación "menor qué" devería devolver false ¿no?, o sea, la izquierda NO es menor que la derecha (el favorito se mayor que el no favorito) Si embargo así no se comportaba como yo esperaba....algo entenderé mal. 
-
-
+- Si `lhs` es favorito, devuelvo ¿true? ¿Por qué? 
+    - Entiendo que si estamos realizando una comparación "menor qué" debería devolver false ¿no?, o sea, la izquierda NO es menor que la derecha (el favorito es mayor que el no-favorito) Si embargo así no se comportaba como yo esperaba....algo entenderé mal. 
 
 Otras consideraciones
 ---------------------
 
 ### Selectores. 
 
-Los he tenido que llamar como strings en vez de con la nueva síntaxis `#selector()`. El problema es que yo tengo Swift 2.1 y esta síntaxis se implemento en 2.2. No he podido instalar Xcode 7.3 (creo que no me lo instala porque todavía tengo un Yosemite...No he pido instalar ElCapitán porque es el equipo del curro, a ver si en verano puedo)
+Los he tenido que llamar como strings en vez de con la nueva síntaxis `#selector()`. El problema es que yo tengo Swift 2.1 y esta síntaxis se implemento en 2.2. No he podido instalar Xcode 7.3 (creo que no me lo instala porque todavía tengo un Yosemite...No he podido instalar El Capitán porque es el equipo del curro, a ver si en verano puedo)
 
+
+### Siguientes Pasos
+Antes de subir a la App Store hay algunas cosas que quiero terminar:
+- La carga de PDFs bloquea la aplicación
+- El botón sandwitch en el splitViewControler de la interfaz de iPad...
+- Una última refactorización de código
+- Añadir tests: Si fuese una aplicacíon importante para mí no dudaría en implementarlos. Si acaba siendo un ejemplo no pasa nada, pero considero importante la mantenibilidad del código
+- Modificar la interfaz usando AutoLayout. 
+- Más funcionalidad:
+    - Añadir etiquetas
+    - Cargar más libros desde un backgr
